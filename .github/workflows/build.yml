@@ -1,0 +1,52 @@
+
+    name: Build,Analyze,scan
+
+    on:
+      push:
+        branches:
+          - main
+
+
+    jobs:
+      build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+            with:
+              fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          - uses: sonarsource/sonarqube-scan-action@master
+            env:
+              SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+              SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+          - name: install trivy
+            run: |
+                #install trivy
+                sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+                wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+                echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+                sudo apt-get update
+                sudo apt-get install trivy -y
+                #command to scan files
+                trivy fs .
+
+          - name: Docker build and push
+            run: |
+                  #run commands to build and push docker images
+                  docker build -t restaurant-website .
+                  docker tag restaurant-website joebaho2/restaurant-website:latest
+                  docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+                  docker push joebaho2/restaurant-website:latest  
+            env:
+                  DOCKER_CLI_ACI: 1
+      deploy:    
+        needs: build  
+        runs-on: [aws-restaurant-website]  
+        steps:
+          - name: Pull the docker image
+            run: docker pull joebaho2/restaurant-website:latest
+          - name: Trivy image scan
+            run: trivy image joebaho2/restaurant-website:latest
+          - name: Run the container netflix
+            run: docker run -dit --name restaurant-website -p 80:80 joebaho2/restaurant-website:latest
