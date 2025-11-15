@@ -42,7 +42,7 @@
                   DOCKER_CLI_ACI: 1
       deploy:    
         needs: build  
-        runs-on: [aws-restaurant-website]  
+        runs-on: [Ubuntu-Docker-jenkins-server]  
         steps:
           - name: Pull the docker image
             run: docker pull joebaho2/restaurant-website:latest
